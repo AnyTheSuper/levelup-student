@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { getSessionUser } from "@/lib/auth";
-import { getDb } from "@/lib/db";
 import { parseXpReward } from "@/lib/xp-reward";
+import { createAssignment, listAssignments } from "@/lib/store";
 
 export async function GET() {
   const user = await getSessionUser();
@@ -10,21 +10,7 @@ export async function GET() {
     return NextResponse.json({ error: "Not logged in" }, { status: 401 });
   }
 
-  const db = getDb();
-  const assignments = db
-    .prepare(
-      `SELECT a.*,
-        CASE WHEN c.id IS NOT NULL THEN 1 ELSE 0 END as completed,
-        c.completed_at
-       FROM assignments a
-       LEFT JOIN completions c ON c.assignment_id = a.id AND c.user_id = ?
-       WHERE a.group_id = ?
-       ORDER BY
-         CASE WHEN c.id IS NULL THEN 0 ELSE 1 END,
-         a.due_date ASC`
-    )
-    .all(user.id, user.group_id);
-
+  const assignments = await listAssignments(user.id, user.group_id);
   return NextResponse.json({ assignments });
 }
 
@@ -49,13 +35,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "XP must be between 1 and 100" }, { status: 400 });
   }
 
-  const db = getDb();
   const id = uuidv4();
-  db.prepare(
-    `INSERT INTO assignments (id, group_id, subject, description, due_date, xp_reward, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, user.group_id, subject.trim(), description.trim(), due_date, xp, user.id);
+  const assignment = await createAssignment(
+    id,
+    user.group_id,
+    subject.trim(),
+    description.trim(),
+    due_date,
+    xp,
+    user.id
+  );
 
-  const assignment = db.prepare("SELECT * FROM assignments WHERE id = ?").get(id);
   return NextResponse.json({ assignment }, { status: 201 });
 }

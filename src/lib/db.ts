@@ -132,6 +132,12 @@ function migrateAssignments(database: Database.Database) {
 export function getDb(): Database.Database {
   if (db) return db;
 
+  if (process.env.VERCEL) {
+    throw new Error(
+      "SQLite cannot run on Vercel. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel Environment Variables, then redeploy."
+    );
+  }
+
   if (!fs.existsSync(DB_DIR)) {
     fs.mkdirSync(DB_DIR, { recursive: true });
   }

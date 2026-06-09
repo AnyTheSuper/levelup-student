@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
 import { setSessionUser } from "@/lib/auth";
-import type { User } from "@/lib/types";
+import { getGroupById, getUserByUsername } from "@/lib/store";
 
 export async function POST(request: Request) {
   try {
@@ -12,18 +11,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Username is required" }, { status: 400 });
     }
 
-    const db = getDb();
-    const user = db
-      .prepare("SELECT * FROM users WHERE username = ?")
-      .get(username.trim().toLowerCase()) as User | undefined;
-
+    const user = await getUserByUsername(username.trim().toLowerCase());
     if (!user) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
     await setSessionUser(user.id);
-
-    const group = db.prepare("SELECT * FROM groups WHERE id = ?").get(user.group_id);
+    const group = await getGroupById(user.group_id);
     return NextResponse.json({ user, group });
   } catch (error) {
     console.error("Login error:", error);

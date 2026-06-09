@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
-import { v4 as uuidv4 } from "uuid";
 import { getSessionUser } from "@/lib/auth";
-import { getDb } from "@/lib/db";
-import { XP_PER_COMPLETION } from "@/lib/constants";
-import { calculateCompletionReward } from "@/lib/xp";
-import type { Assignment } from "@/lib/types";
+import { completeAssignment, getAssignment, uncompleteAssignment } from "@/lib/store";
 
 export async function POST(
   _request: Request,
@@ -16,46 +12,17 @@ export async function POST(
   }
 
   const { id } = await params;
-  const db = getDb();
-
-  const assignment = db
-    .prepare("SELECT * FROM assignments WHERE id = ? AND group_id = ?")
-    .get(id, user.group_id) as Assignment | undefined;
+  const assignment = await getAssignment(id, user.group_id);
   if (!assignment) {
     return NextResponse.json({ error: "Assignment not found" }, { status: 404 });
   }
 
-  const existing = db
-    .prepare("SELECT id FROM completions WHERE assignment_id = ? AND user_id = ?")
-    .get(id, user.id);
-  if (existing) {
+  const result = await completeAssignment(id, user);
+  if (!result) {
     return NextResponse.json({ error: "Already completed" }, { status: 409 });
   }
 
-  const baseXp = assignment.xp_reward ?? XP_PER_COMPLETION;
-  const { xpEarned, newStreak, streakBonus } = calculateCompletionReward(user, baseXp);
-  const today = new Date().toISOString().split("T")[0];
-
-  const complete = db.transaction(() => {
-    db.prepare(
-      "INSERT INTO completions (id, assignment_id, user_id, xp_earned) VALUES (?, ?, ?, ?)"
-    ).run(uuidv4(), id, user.id, xpEarned);
-
-    db.prepare(
-      `UPDATE users SET xp = xp + ?, streak = ?, last_completion_date = ? WHERE id = ?`
-    ).run(xpEarned, newStreak, today, user.id);
-  });
-
-  complete();
-
-  const updatedUser = db.prepare("SELECT * FROM users WHERE id = ?").get(user.id);
-
-  return NextResponse.json({
-    xpEarned,
-    streakBonus,
-    newStreak,
-    user: updatedUser,
-  });
+  return NextResponse.json(result);
 }
 
 export async function DELETE(
@@ -68,35 +35,11 @@ export async function DELETE(
   }
 
   const { id } = await params;
-  const db = getDb();
+  const result = await uncompleteAssignment(id, user);
 
-  const completion = db
-    .prepare(
-      "SELECT id, xp_earned FROM completions WHERE assignment_id = ? AND user_id = ?"
-    )
-    .get(id, user.id) as { id: string; xp_earned: number | null } | undefined;
-  if (!completion) {
+  if (!result) {
     return NextResponse.json({ error: "Not completed" }, { status: 404 });
   }
 
-  const assignment = db
-    .prepare("SELECT xp_reward FROM assignments WHERE id = ? AND group_id = ?")
-    .get(id, user.group_id) as { xp_reward: number } | undefined;
-
-  const xpToRemove =
-    completion.xp_earned ?? assignment?.xp_reward ?? XP_PER_COMPLETION;
-  const newXp = Math.max(0, user.xp - xpToRemove);
-
-  const uncomplete = db.transaction(() => {
-    db.prepare("DELETE FROM completions WHERE assignment_id = ? AND user_id = ?").run(
-      id,
-      user.id
-    );
-    db.prepare("UPDATE users SET xp = ? WHERE id = ?").run(newXp, user.id);
-  });
-
-  uncomplete();
-
-  const updatedUser = db.prepare("SELECT * FROM users WHERE id = ?").get(user.id);
-  return NextResponse.json({ user: updatedUser, xpRemoved: xpToRemove });
+  return NextResponse.json(result);
 }

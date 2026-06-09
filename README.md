@@ -36,22 +36,34 @@ Open [http://localhost:3000](http://localhost:3000)
 ## Tech Stack
 
 - Next.js 16 (App Router)
-- SQLite (better-sqlite3) — local file at `data/homework.db`
+- **Supabase** (PostgreSQL) when configured — recommended for deployment
+- **SQLite** (better-sqlite3) — local fallback at `data/homework.db`
 - Tailwind CSS 4
 - Cookie-based sessions (no passwords for MVP)
+
+## Supabase Setup
+
+1. Create a project at [supabase.com](https://supabase.com)
+2. In **SQL Editor**, run the schema from [`supabase/schema.sql`](supabase/schema.sql)
+3. Copy `.env.example` to `.env.local` and fill in:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY` (Project Settings → API — keep secret!)
+4. Restart the dev server
+
+When Supabase env vars are set, the app uses Supabase automatically. Without them, it falls back to local SQLite.
 
 ## Project Structure
 
 ```
 src/
-  app/
-    onboarding/     # Sign-up flow
-    dashboard/      # Homework list
-    leaderboard/    # Group rankings
-    profile/        # Group code, privacy settings
-    api/            # REST endpoints
+  app/              # Pages and API routes
   components/       # UI components
-  lib/              # DB, auth, XP logic
+  lib/
+    store/          # Data layer (Supabase + SQLite)
+    supabase/       # Supabase client
+supabase/
+  schema.sql        # PostgreSQL schema
 ```
 
 ## Data Model

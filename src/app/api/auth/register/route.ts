@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
-import { getDb } from "@/lib/db";
 import { setSessionUser } from "@/lib/auth";
 import { AVATARS } from "@/lib/constants";
+import {
+  createGroup,
+  createUser,
+  getGroupById,
+  groupNameExists,
+  usernameExists,
+} from "@/lib/store";
 
 export async function POST(request: Request) {
   try {
@@ -32,12 +38,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Pick a valid avatar" }, { status: 400 });
     }
 
-    const db = getDb();
-
-    const existing = db
-      .prepare("SELECT id FROM users WHERE username = ?")
-      .get(trimmedUsername);
-    if (existing) {
+    if (await usernameExists(trimmedUsername)) {
       return NextResponse.json({ error: "Username already taken" }, { status: 409 });
     }
 
@@ -57,10 +58,7 @@ export async function POST(request: Request) {
         );
       }
 
-      const nameTaken = db
-        .prepare("SELECT id FROM groups WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))")
-        .get(trimmedName);
-      if (nameTaken) {
+      if (await groupNameExists(trimmedName)) {
         return NextResponse.json(
           { error: "That group already exists — try joining it instead!" },
           { status: 409 }
@@ -68,18 +66,13 @@ export async function POST(request: Request) {
       }
 
       resolvedGroupId = uuidv4();
-      db.prepare("INSERT INTO groups (id, name) VALUES (?, ?)").run(
-        resolvedGroupId,
-        trimmedName
-      );
+      await createGroup(resolvedGroupId, trimmedName);
       isOwner = 1;
     } else if (action === "join") {
       if (!groupId || typeof groupId !== "string") {
         return NextResponse.json({ error: "Pick a group to join" }, { status: 400 });
       }
-      const group = db
-        .prepare("SELECT id FROM groups WHERE id = ?")
-        .get(groupId) as { id: string } | undefined;
+      const group = await getGroupById(groupId);
       if (!group) {
         return NextResponse.json({ error: "That group wasn't found" }, { status: 404 });
       }
@@ -89,16 +82,17 @@ export async function POST(request: Request) {
     }
 
     const userId = uuidv4();
-    db.prepare(
-      `INSERT INTO users (id, username, avatar, group_id, is_owner)
-       VALUES (?, ?, ?, ?, ?)`
-    ).run(userId, trimmedUsername, avatar, resolvedGroupId, isOwner);
+    const user = await createUser(
+      userId,
+      trimmedUsername,
+      avatar,
+      resolvedGroupId,
+      isOwner
+    );
 
     await setSessionUser(userId);
 
-    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
-    const group = db.prepare("SELECT * FROM groups WHERE id = ?").get(resolvedGroupId);
-
+    const group = await getGroupById(resolvedGroupId);
     return NextResponse.json({ user, group });
   } catch (error) {
     console.error("Register error:", error);

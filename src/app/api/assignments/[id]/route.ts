@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
-import { getDb } from "@/lib/db";
 import { parseXpReward } from "@/lib/xp-reward";
-import type { Assignment } from "@/lib/types";
+import { deleteAssignment, getAssignment, updateAssignment } from "@/lib/store";
 
 export async function PUT(
   request: Request,
@@ -20,10 +19,7 @@ export async function PUT(
   const body = await request.json();
   const { subject, description, due_date, xp_reward } = body;
 
-  const db = getDb();
-  const existing = db
-    .prepare("SELECT * FROM assignments WHERE id = ? AND group_id = ?")
-    .get(id, user.group_id) as Assignment | undefined;
+  const existing = await getAssignment(id, user.group_id);
   if (!existing) {
     return NextResponse.json({ error: "Assignment not found" }, { status: 404 });
   }
@@ -37,17 +33,15 @@ export async function PUT(
     xp = parsed;
   }
 
-  db.prepare(
-    `UPDATE assignments SET subject = ?, description = ?, due_date = ?, xp_reward = ? WHERE id = ?`
-  ).run(
+  const assignment = await updateAssignment(
+    id,
+    user.group_id,
     subject?.trim() ?? existing.subject,
     description?.trim() ?? existing.description,
     due_date ?? existing.due_date,
-    xp,
-    id
+    xp
   );
 
-  const assignment = db.prepare("SELECT * FROM assignments WHERE id = ?").get(id);
   return NextResponse.json({ assignment });
 }
 
@@ -64,16 +58,10 @@ export async function DELETE(
   }
 
   const { id } = await params;
-  const db = getDb();
-  const existing = db
-    .prepare("SELECT * FROM assignments WHERE id = ? AND group_id = ?")
-    .get(id, user.group_id);
-  if (!existing) {
+  const deleted = await deleteAssignment(id, user.group_id);
+  if (!deleted) {
     return NextResponse.json({ error: "Assignment not found" }, { status: 404 });
   }
-
-  db.prepare("DELETE FROM completions WHERE assignment_id = ?").run(id);
-  db.prepare("DELETE FROM assignments WHERE id = ?").run(id);
 
   return NextResponse.json({ success: true });
 }

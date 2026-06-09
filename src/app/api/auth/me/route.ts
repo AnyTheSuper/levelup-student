@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getGroupById } from "@/lib/store";
 
 export async function GET() {
   const user = await getSessionUser();
@@ -8,8 +8,6 @@ export async function GET() {
     return NextResponse.json({ user: null });
   }
 
-  const db = getDb();
-  const group = db.prepare("SELECT * FROM groups WHERE id = ?").get(user.group_id);
-
+  const group = await getGroupById(user.group_id);
   return NextResponse.json({ user, group });
 }
