@@ -20,7 +20,6 @@ export default function ProfilePage() {
   const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
-  const [switching, setSwitching] = useState(false);
 
   const loadData = useCallback(async () => {
     const res = await fetch("/api/profile");
@@ -49,12 +48,6 @@ export default function ProfilePage() {
     });
     const data = await res.json();
     setUser(data.user);
-  }
-
-  async function switchProfile() {
-    setSwitching(true);
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/onboarding");
   }
 
   if (loading || !user || !group) {
@@ -149,19 +142,6 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border-2 border-indigo-200 bg-indigo-50 p-4">
-          <h2 className="font-bold text-indigo-800">Switch Profile</h2>
-          <p className="mt-1 text-sm text-indigo-700">
-            Use a different account — like switching to the owner who adds homework, or a student profile.
-          </p>
-          <button
-            onClick={switchProfile}
-            disabled={switching}
-            className="mt-3 w-full rounded-2xl bg-indigo-600 py-3 font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
-          >
-            {switching ? "Switching..." : "Switch Profile →"}
-          </button>
-        </div>
       </div>
     </AppShell>
   );

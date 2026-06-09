@@ -269,7 +269,7 @@ export default function DashboardPage() {
                 <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-4">
                   <p className="font-bold text-amber-800">Want to add homework?</p>
                   <p className="mt-1 text-sm text-amber-700">
-                    Only group owners can create tasks. Go to Profile → Switch Profile and pick the owner account ⭐
+                    Only group owners can create tasks. Ask your group owner to add homework! ⭐
                   </p>
                 </div>
               )}
